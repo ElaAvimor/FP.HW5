@@ -31,66 +31,89 @@ foldMap' FoldMapFunc{agg, finalize} = finalize . foldMap agg
 
 -- Section 1: Foldable functions
 fmsum :: Num a => FoldMapFunc a _ a
+fmsum = FoldMapFunc Sum getSum
+
 fmor :: FoldMapFunc Bool _ Bool
+fmor = FoldMapFunc Any getAny
+
 fmfold :: Monoid a => FoldMapFunc a _ a
+fmfold = FoldMapFunc id id
+
 fmelem :: Eq a => a -> FoldMapFunc a _ Bool
+fmelem x = FoldMapFunc (\y -> Any (y == x)) getAny
+
 fmfind :: (a -> Bool) -> FoldMapFunc a _ (Maybe a)
+fmfind p = FoldMapFunc (\x -> First (if p x then Just x else Nothing)) getFirst
+
 fmlength :: FoldMapFunc a _ Int
+fmlength = FoldMapFunc (const (Sum 1)) getSum
+
 fmnull :: FoldMapFunc a _ Bool
+fmnull = FoldMapFunc (const (All False)) getAll
+
 fmmaximum :: Ord a => FoldMapFunc a _ (Maybe a)
+fmmaximum = FoldMapFunc (Max . Just) getMax
+
 fmminimum :: Ord a => FoldMapFunc a _ (Maybe a)
+fmminimum = FoldMapFunc (Min . Just) getMin
+
 fmmaxBy :: Ord b => (a -> b) -> FoldMapFunc a _ (Maybe a)
+fmmaxBy f = FoldMapFunc (Max . f) getMax
+
 fmminBy :: Ord b => (a -> b) -> FoldMapFunc a _ (Maybe a)
+fmminBy f = FoldMapFunc (Min . f) getMin
+
 fmtoList :: FoldMapFunc a _ [a]
+fmtoList = FoldMapFunc (: []) id
 
--- Section 2: Deque instances (Don't forget to implement the instances in Deque.hs as well!)
-newtype DequeWrapper a = DequeWrapper (Deque a) deriving (Show, Eq)
-instance Semigroup (DequeWrapper a)
-instance Monoid (DequeWrapper a)
-instance Foldable DequeWrapper
-instance Functor DequeWrapper
-instance Applicative DequeWrapper
-instance Monad DequeWrapper
+-- -- Section 2: Deque instances (Don't forget to implement the instances in Deque.hs as well!)
+-- newtype DequeWrapper a = DequeWrapper (Deque a) deriving (Show, Eq)
+-- instance Semigroup (DequeWrapper a)
+-- instance Monoid (DequeWrapper a)
+-- instance Foldable DequeWrapper
+-- instance Functor DequeWrapper
+-- instance Applicative DequeWrapper
+-- instance Monad DequeWrapper
 
--- Section 3: Calculator and traverse
-class Monad f => CalculatorError f where
-  divideByZero :: f Int
-  missingVariable :: String -> f Int
+-- -- Section 3: Calculator and traverse
+-- class Monad f => CalculatorError f where
+--   divideByZero :: f Int
+--   missingVariable :: String -> f Int
 
-runCalculator :: CalculatorError f => Map String Int -> Expr -> f Int
+-- runCalculator :: CalculatorError f => Map String Int -> Expr -> f Int
 
--- Instances to implement:
-instance CalculatorError Maybe
+-- -- Instances to implement:
+-- instance CalculatorError Maybe
 
-data Err = DivByZero | MissingVar String deriving (Show, Eq)
-instance CalculatorError (Either Err)
+-- data Err = DivByZero | MissingVar String deriving (Show, Eq)
+-- instance CalculatorError (Either Err)
 
-data Defaults
-  = Defaults
-  -- This replaces the entire division result, not just the denominator!
-  { defaultForDivisionByZero :: Int
-  , defaultForVariable :: String -> Int
-  }
-instance CalculatorError (Reader Defaults)
+-- data Defaults
+--   = Defaults
+--   -- This replaces the entire division result, not just the denominator!
+--   { defaultForDivisionByZero :: Int
+--   , defaultForVariable :: String -> Int
+--   }
+-- instance CalculatorError (Reader Defaults)
 
--- From the lectures:
-newtype Reader r a = Reader {runReader :: r -> a}
-instance Functor (Reader r) where
-  fmap f r = Reader $ f . runReader r
-instance Applicative (Reader r) where
-  pure = Reader . const
-  liftA2 f ra rb = Reader $ \r -> f (runReader ra r) (runReader rb r)
-instance Monad (Reader r) where
-  ra >>= f = Reader $ \r -> runReader (f $ runReader ra r) r
+-- -- From the lectures:
+-- newtype Reader r a = Reader {runReader :: r -> a}
+-- instance Functor (Reader r) where
+--   fmap f r = Reader $ f . runReader r
+-- instance Applicative (Reader r) where
+--   pure = Reader . const
+--   liftA2 f ra rb = Reader $ \r -> f (runReader ra r) (runReader rb r)
+-- instance Monad (Reader r) where
+--   ra >>= f = Reader $ \r -> runReader (f $ runReader ra r) r
 
-data Expr
-  = Val Int
-  | Var String
-  | Add Expr Expr
-  | Sub Expr Expr
-  | Mul Expr Expr
-  | Div Expr Expr
-  deriving (Show, Eq)
+-- data Expr
+--   = Val Int
+--   | Var String
+--   | Add Expr Expr
+--   | Sub Expr Expr
+--   | Mul Expr Expr
+--   | Div Expr Expr
+--   deriving (Show, Eq)
 
--- Section 4: Hangman
-hangman :: String -> IO Int
+-- -- Section 4: Hangman
+-- hangman :: String -> IO Int

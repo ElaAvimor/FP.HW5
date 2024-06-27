@@ -35,9 +35,9 @@ popr = \case
   Deque l (r : rs) -> Just (r, Deque l rs)
   Deque l [] -> popr $ Deque [] (reverse l)
 
-instance Semigroup (Deque a) where
-instance Monoid (Deque a) where
-instance Foldable Deque where
-instance Functor Deque where
-instance Applicative Deque where
-instance Monad Deque where
+-- instance Semigroup (Deque a) where
+-- instance Monoid (Deque a) where
+-- instance Foldable Deque where
+-- instance Functor Deque where
+-- instance Applicative Deque where
+-- instance Monad Deque where

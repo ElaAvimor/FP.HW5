@@ -30,40 +30,51 @@ foldMap' :: (Foldable t, Monoid m) => FoldMapFunc a m result -> t a -> result
 foldMap' FoldMapFunc{agg, finalize} = finalize . foldMap agg
 
 -- Section 1: Foldable functions
-fmsum :: Num a => FoldMapFunc a _ a
+fmsum :: Num a => FoldMapFunc a (Sum a) a
 fmsum = FoldMapFunc Sum getSum
 
-fmor :: FoldMapFunc Bool _ Bool
+fmor :: FoldMapFunc Bool Any Bool
 fmor = FoldMapFunc Any getAny
 
-fmfold :: Monoid a => FoldMapFunc a _ a
+fmfold :: Monoid a => FoldMapFunc a a a
 fmfold = FoldMapFunc id id
 
-fmelem :: Eq a => a -> FoldMapFunc a _ Bool
+fmelem :: Eq a => a -> FoldMapFunc a Any Bool
 fmelem x = FoldMapFunc (\y -> Any (y == x)) getAny
 
-fmfind :: (a -> Bool) -> FoldMapFunc a _ (Maybe a)
+fmfind :: (a -> Bool) -> FoldMapFunc a (First a) (Maybe a)
 fmfind p = FoldMapFunc (\x -> First (if p x then Just x else Nothing)) getFirst
 
-fmlength :: FoldMapFunc a _ Int
+fmlength :: FoldMapFunc a (Sum Int) Int
 fmlength = FoldMapFunc (const (Sum 1)) getSum
 
-fmnull :: FoldMapFunc a _ Bool
+fmnull :: FoldMapFunc a All Bool
 fmnull = FoldMapFunc (const (All False)) getAll
 
-fmmaximum :: Ord a => FoldMapFunc a _ (Maybe a)
-fmmaximum = FoldMapFunc (Max . Just) getMax
+fmmaximum :: Ord a => FoldMapFunc a (Maybe (Max a)) (Maybe a)
+fmmaximum = FoldMapFunc (Just . Max) getMaxMaybe
+  where
+    getMaxMaybe :: Maybe (Max a) -> Maybe a
+    getMaxMaybe = fmap getMax
 
-fmminimum :: Ord a => FoldMapFunc a _ (Maybe a)
-fmminimum = FoldMapFunc (Min . Just) getMin
+fmminimum :: Ord a => FoldMapFunc a (Maybe (Min a)) (Maybe a)
+fmminimum = FoldMapFunc (Just . Min) getMinMaybe
+      where
+        getMinMaybe :: Maybe (Min a) -> Maybe a
+        getMinMaybe = fmap getMin
 
-fmmaxBy :: Ord b => (a -> b) -> FoldMapFunc a _ (Maybe a)
-fmmaxBy f = FoldMapFunc (Max . f) getMax
+fmmaxBy :: Ord b => (a -> b) -> FoldMapFunc a (Maybe (Max (Arg b a))) (Maybe a)
+fmmaxBy f = FoldMapFunc (Just . Max . (\x -> Arg (f x) x)) getMaxByMaybe
+          where
+            getMaxByMaybe :: Maybe (Max (Arg b a)) -> Maybe a
+            getMaxByMaybe = fmap (\(Max (Arg _ a)) -> a)
+fmminBy :: Ord b => (a -> b) -> FoldMapFunc a (Maybe (Min (Arg b a))) (Maybe a)
+fmminBy f = FoldMapFunc (Just . Min . (\x -> Arg (f x) x)) getMinByMaybe
+              where
+                getMinByMaybe :: Maybe (Min (Arg b a)) -> Maybe a
+                getMinByMaybe = fmap (\(Min (Arg _ a)) -> a)
 
-fmminBy :: Ord b => (a -> b) -> FoldMapFunc a _ (Maybe a)
-fmminBy f = FoldMapFunc (Min . f) getMin
-
-fmtoList :: FoldMapFunc a _ [a]
+fmtoList :: FoldMapFunc a [a] [a]
 fmtoList = FoldMapFunc (: []) id
 
 -- -- Section 2: Deque instances (Don't forget to implement the instances in Deque.hs as well!)

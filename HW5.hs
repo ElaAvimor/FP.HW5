@@ -77,14 +77,33 @@ fmminBy f = FoldMapFunc (Just . Min . (\x -> Arg (f x) x)) getMinByMaybe
 fmtoList :: FoldMapFunc a [a] [a]
 fmtoList = FoldMapFunc (: []) id
 
--- -- Section 2: Deque instances (Don't forget to implement the instances in Deque.hs as well!)
--- newtype DequeWrapper a = DequeWrapper (Deque a) deriving (Show, Eq)
--- instance Semigroup (DequeWrapper a)
--- instance Monoid (DequeWrapper a)
--- instance Foldable DequeWrapper
--- instance Functor DequeWrapper
--- instance Applicative DequeWrapper
--- instance Monad DequeWrapper
+-- Section 2: Deque instances (Don't forget to implement the instances in Deque.hs as well!)
+newtype DequeWrapper a = DequeWrapper (Deque a) deriving (Show, Eq)
+
+instance Semigroup (DequeWrapper a)
+    where
+        DequeWrapper dq1 <> DequeWrapper dq2 = DequeWrapper (dq1 <> dq2)
+        
+instance Monoid (DequeWrapper a)
+    where
+        mempty = DequeWrapper DQ.empty
+
+instance Foldable DequeWrapper
+    where
+        foldMap f (DequeWrapper dq) = foldMap f dq
+
+instance Functor DequeWrapper
+    where
+        fmap f (DequeWrapper dq) = DequeWrapper (fmap f dq)
+
+instance Applicative DequeWrapper
+    where
+        pure x = DequeWrapper (pure x)
+        DequeWrapper dq1 <*> DequeWrapper dq2 = DequeWrapper (liftA2 ($) dq1 dq2)
+
+instance Monad DequeWrapper
+    where
+        DequeWrapper dq >>= f = DequeWrapper (dq >>= (\x -> case f x of DequeWrapper dq' -> dq')) 
 
 -- Section 3: Calculator and traverse
 class Monad f => CalculatorError f where

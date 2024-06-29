@@ -35,9 +35,24 @@ popr = \case
   Deque l (r : rs) -> Just (r, Deque l rs)
   Deque l [] -> popr $ Deque [] (reverse l)
 
--- instance Semigroup (Deque a) where
--- instance Monoid (Deque a) where
--- instance Foldable Deque where
--- instance Functor Deque where
--- instance Applicative Deque where
--- instance Monad Deque where
+instance Semigroup (Deque a) where
+  Deque l1 r1 <> Deque l2 r2 = Deque (l1 ++ reverse r1 ++ l2) r2
+
+instance Monoid (Deque a) where
+  mempty = empty
+
+instance Foldable Deque where
+  foldMap f (Deque l r) = foldMap f l `mappend` foldMap f (reverse r)
+
+instance Functor Deque where
+  fmap f (Deque l r) = Deque (map f l) (map f r)
+
+instance Applicative Deque where
+      pure x = Deque [x] []
+      Deque fs rs <*> Deque xs ys = 
+        let leftApplied = [f x | f <- fs ++ reverse rs, x <- xs ++ reverse ys]
+        in Deque leftApplied []
+
+instance Monad Deque where
+  Deque l r >>= f = foldl' (flip pushr) (Deque [] []) (concatMap (toList . f) (l ++ reverse r))
+

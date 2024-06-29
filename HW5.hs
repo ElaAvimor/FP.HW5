@@ -181,7 +181,8 @@ playGame gameState = do
   _ <- getLine  -- consume the newline character
   if not (isLetter guess)
     then do
-      putStrLn $ "Invalid letter guess " ++ [guess] ++ "!"
+      let prompt = if guess == '?' then "Remaining letters: [" ++ nub (S.toList (S.difference (S.fromList ['a' .. 'z']) (makeTheSetLower (S.fromList (guesses gameState))))) ++ "]" else "Invalid letter guess " ++ [guess] ++ "!"
+      putStrLn prompt
       playGame gameState
     else do
       let previousWrongGuesses = wrongGuesses gameState

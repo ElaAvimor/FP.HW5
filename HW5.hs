@@ -86,45 +86,161 @@ fmtoList = FoldMapFunc (: []) id
 -- instance Applicative DequeWrapper
 -- instance Monad DequeWrapper
 
--- -- Section 3: Calculator and traverse
--- class Monad f => CalculatorError f where
---   divideByZero :: f Int
---   missingVariable :: String -> f Int
+-- Section 3: Calculator and traverse
+class Monad f => CalculatorError f where
+  divideByZero :: f Int
+  missingVariable :: String -> f Int
 
--- runCalculator :: CalculatorError f => Map String Int -> Expr -> f Int
+runCalculator :: CalculatorError f => Map String Int -> Expr -> f Int
+runCalculator vars = \case
+  Val x -> pure x
+  Var x -> maybe (missingVariable x) pure (vars !? x)
+  Add x y -> liftA2 (+) (runCalculator vars x) (runCalculator vars y)
+  Sub x y -> liftA2 (-) (runCalculator vars x) (runCalculator vars y)
+  Mul x y -> liftA2 (*) (runCalculator vars x) (runCalculator vars y)
+  Div x y -> do
+    y' <- runCalculator vars y
+    if y' == 0 then divideByZero else liftA2 div (runCalculator vars x) (pure y')
 
--- -- Instances to implement:
--- instance CalculatorError Maybe
+-- Instances to implement:
+instance CalculatorError Maybe
+  where
+    divideByZero = Nothing
+    missingVariable _ = Nothing
 
--- data Err = DivByZero | MissingVar String deriving (Show, Eq)
--- instance CalculatorError (Either Err)
+data Err = DivByZero | MissingVar String deriving (Show, Eq)
+instance CalculatorError (Either Err)
+  where
+    divideByZero = Left DivByZero
+    missingVariable = Left . MissingVar
 
--- data Defaults
---   = Defaults
---   -- This replaces the entire division result, not just the denominator!
---   { defaultForDivisionByZero :: Int
---   , defaultForVariable :: String -> Int
---   }
--- instance CalculatorError (Reader Defaults)
+data Defaults
+  = Defaults
+  -- This replaces the entire division result, not just the denominator!
+  { defaultForDivisionByZero :: Int
+  , defaultForVariable :: String -> Int
+  }
+instance CalculatorError (Reader Defaults)
+  where
+    divideByZero = Reader $ \defaults -> defaultForDivisionByZero defaults
+    missingVariable x = Reader $ \defaults -> defaultForVariable defaults x
 
 -- -- From the lectures:
--- newtype Reader r a = Reader {runReader :: r -> a}
--- instance Functor (Reader r) where
---   fmap f r = Reader $ f . runReader r
--- instance Applicative (Reader r) where
---   pure = Reader . const
---   liftA2 f ra rb = Reader $ \r -> f (runReader ra r) (runReader rb r)
--- instance Monad (Reader r) where
---   ra >>= f = Reader $ \r -> runReader (f $ runReader ra r) r
+newtype Reader r a = Reader {runReader :: r -> a}
+instance Functor (Reader r) where
+  fmap f r = Reader $ f . runReader r
+instance Applicative (Reader r) where
+  pure = Reader . const
+  liftA2 f ra rb = Reader $ \r -> f (runReader ra r) (runReader rb r)
+instance Monad (Reader r) where
+  ra >>= f = Reader $ \r -> runReader (f $ runReader ra r) r
 
--- data Expr
---   = Val Int
---   | Var String
---   | Add Expr Expr
---   | Sub Expr Expr
---   | Mul Expr Expr
---   | Div Expr Expr
---   deriving (Show, Eq)
+data Expr
+  = Val Int
+  | Var String
+  | Add Expr Expr
+  | Sub Expr Expr
+  | Mul Expr Expr
+  | Div Expr Expr
+  deriving (Show, Eq)
 
 -- -- Section 4: Hangman
--- hangman :: String -> IO Int
+hangman :: String -> IO Int
+hangman word = do
+  let wordSet = removeSpacesFromSet (makeTheSetLower (S.fromList word))
+  -- let wordLength = length word
+  let initialDisplay = initialDisplayWithSpaces word
+  let initialGameState = GameState word wordSet initialDisplay "" (getTheLengthOftheSet wordSet) 0 False
+  playGame initialGameState
+
+playGame :: GameState -> IO Int
+playGame gameState = do
+  putStrLn $ display gameState
+  let promptMessage = if lastGuessCorrect gameState then "Try again: " else "Guess a letter: "
+  putStr promptMessage
+  guess <- getChar
+  _ <- getLine  -- consume the newline character
+  if not (isLetter guess)
+    then do
+      putStrLn $ "Invalid letter guess " ++ [guess] ++ "!"
+      playGame gameState
+    else do
+      let previousWrongGuesses = wrongGuesses gameState
+      let newGameState = updateGameState gameState (toLower guess)
+      let currentWrongGuesses = wrongGuesses newGameState
+      if currentWrongGuesses > previousWrongGuesses
+        then putStrLn "Wrong guess!"
+        else pure ()
+      if isWin newGameState
+        then do
+          putStrLn "Very good, the word is:"
+          putStrLn $ word newGameState
+          pure $ calculateScore newGameState
+        else playGame newGameState
+
+updateGameState :: GameState -> Char -> GameState
+updateGameState gameState guess =
+  let newGuesses = if guess `elem` guesses gameState then guesses gameState else guess : guesses gameState
+      newDisplay = updateDisplay (word gameState) (display gameState) (toLower guess)
+      isWrongGuess = not (guess `elem` wordSet gameState)
+      newWrongGuesses = if isWrongGuess then 1 else 0
+  in gameState {display = newDisplay, guesses = newGuesses, wrongGuesses = wrongGuesses gameState + newWrongGuesses, lastGuessCorrect = isWrongGuess}
+
+updateDisplay :: String -> String -> Char -> String
+updateDisplay [] _ _ = []
+updateDisplay _ [] _ = []
+updateDisplay (w:ws) (d:ds) guess
+  | w == ' ' = ' ' : updateDisplay ws ds guess
+  | toLower w == guess = w : updateDisplay ws ds guess
+  | otherwise = d : updateDisplay ws ds guess
+
+
+isGameOver :: GameState -> Bool
+isGameOver = isWin
+
+isWin :: GameState -> Bool
+isWin gameState = all (`elem` guesses gameState) (S.toList (wordSet gameState))
+
+calculateScore :: GameState -> Int
+calculateScore gameState = max 0 (calculateTotalGuesses gameState - maxGuesses gameState)
+
+calculateTotalGuesses :: GameState -> Int
+calculateTotalGuesses gameState = maxGuesses gameState + wrongGuesses gameState
+
+isLetter :: Char -> Bool
+isLetter c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+
+nub :: Eq a => [a] -> [a]
+nub = nubBy (==)
+
+nubBy :: (a -> a -> Bool) -> [a] -> [a]
+nubBy eq = foldl' (\seen x -> if any (eq x) seen then seen else seen ++ [x]) []
+
+toLower :: Char -> Char
+toLower c
+  | c >= 'A' && c <= 'Z' = toEnum (fromEnum c + 32)
+  | otherwise = c
+
+makeTheSetLower :: Set Char -> Set Char
+makeTheSetLower = S.fromList . map toLower . S.toList
+
+getTheLengthOftheSet :: Set Char -> Int
+getTheLengthOftheSet = length . S.toList
+
+removeSpacesFromSet :: Set Char -> Set Char
+removeSpacesFromSet = S.filter (/= ' ')
+
+initialDisplayWithSpaces :: String -> String
+initialDisplayWithSpaces = map (\c -> if c == ' ' then ' ' else '_')
+
+
+data GameState = GameState
+  { word :: String
+  , wordSet :: Set Char
+  , display :: String
+  , guesses :: String
+  , maxGuesses :: Int
+  , wrongGuesses :: Int
+  , lastGuessCorrect :: Bool
+  }
+  deriving (Show, Eq)
